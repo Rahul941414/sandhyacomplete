@@ -13,6 +13,8 @@ export default function Checkout() {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [gateway, setGateway] = useState<"razorpay" | "payu" | "cod">("razorpay");
+  const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const payWithRazorpay = async () => {
     const res = await fetch("/api/orders/razorpay/create", {
@@ -59,6 +61,7 @@ export default function Checkout() {
   };
 
   const cashOnDelivery = async () => {
+    setLoading(true);
     const res = await fetch("/api/orders/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -72,10 +75,14 @@ export default function Checkout() {
         },
       }),
     });
+    setLoading(false);
     if (!res.ok) { alert("Failed to create order"); return; }
     const data = await res.json();
     clear();
-    nav("/confirmation", { replace: true, state: { orderId: data.id, paymentMethod: "Cash on Delivery" } });
+    setSuccessMessage(`Order placed successfully! Your order #${data.id} is confirmed.`);
+    setTimeout(() => {
+      nav("/confirmation", { replace: true, state: { orderId: data.id, paymentMethod: "Cash on Delivery" } });
+    }, 1400);
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -94,6 +101,11 @@ export default function Checkout() {
       <div className="lg:col-span-2 card p-6">
         <h2 className="text-xl font-semibold mb-4">Checkout</h2>
         <form onSubmit={submit} className="space-y-3">
+          {successMessage ? (
+            <div className="rounded-2xl bg-emerald-100 border border-emerald-200 p-4 text-emerald-900">
+              {successMessage}
+            </div>
+          ) : null}
           <input className="w-full border px-4 py-2 rounded-xl" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} />
           <input className="w-full border px-4 py-2 rounded-xl" placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
           <textarea className="w-full border px-4 py-2 rounded-xl" placeholder="Address" rows={4} value={address} onChange={e => setAddress(e.target.value)} />
@@ -106,8 +118,8 @@ export default function Checkout() {
             <input type="checkbox" className="mt-1" checked={agree} onChange={e => setAgree(e.target.checked)} />
             <span>I agree to the <a className="underline" href="/terms" target="_blank">Terms & Conditions</a> and <a className="underline" href="/privacy" target="_blank">Privacy Policy</a>.</span>
           </label>
-          <button className="bg-emerald-600 text-white px-6 py-2 rounded-xl disabled:opacity-50" disabled={!agree} type="submit">
-            {gateway === 'cod' ? 'Place Order' : `Pay ₹${totalPrice} & Place Order`}
+          <button className="bg-emerald-600 text-white px-6 py-2 rounded-xl disabled:opacity-50" disabled={!agree || loading} type="submit">
+            {loading ? "Processing..." : gateway === 'cod' ? 'Place Order' : `Pay ₹${totalPrice} & Place Order`}
           </button>
         </form>
         <PaymentSecurity />
