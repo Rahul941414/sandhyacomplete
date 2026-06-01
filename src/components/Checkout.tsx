@@ -12,7 +12,7 @@ export default function Checkout() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
-  const [gateway, setGateway] = useState<"razorpay" | "payu">("razorpay");
+  const [gateway, setGateway] = useState<"razorpay" | "payu" | "cod">("razorpay");
 
   const payWithRazorpay = async () => {
     const res = await fetch("/api/orders/razorpay/create", {
@@ -58,6 +58,22 @@ export default function Checkout() {
     window.location.href = data.redirectUrl;
   };
 
+  const cashOnDelivery = async () => {
+    const res = await fetch("/api/orders/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        amount: totalPrice,
+        currency: "INR",
+        notes: { name, phone, address },
+        paymentMethod: "cash_on_delivery"
+      })
+    });
+    if (!res.ok) { alert("Failed to create order"); return; }
+    clear();
+    nav("/confirmation", { replace: true });
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!agree || !name || !phone || !address || totalPrice <= 0) {
@@ -65,7 +81,8 @@ export default function Checkout() {
       return;
     }
     if (gateway === "razorpay") await payWithRazorpay();
-    else await payWithPayU();
+    else if (gateway === "payu") await payWithPayU();
+    else await cashOnDelivery();
   };
 
   return (
@@ -79,13 +96,14 @@ export default function Checkout() {
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-2"><input type="radio" checked={gateway === 'razorpay'} onChange={() => setGateway('razorpay')} /> Razorpay</label>
             <label className="flex items-center gap-2"><input type="radio" checked={gateway === 'payu'} onChange={() => setGateway('payu')} /> PayU</label>
+            <label className="flex items-center gap-2"><input type="radio" checked={gateway === 'cod'} onChange={() => setGateway('cod')} /> Cash on Delivery</label>
           </div>
           <label className="flex items-start gap-3 text-sm">
             <input type="checkbox" className="mt-1" checked={agree} onChange={e => setAgree(e.target.checked)} />
             <span>I agree to the <a className="underline" href="/terms" target="_blank">Terms & Conditions</a> and <a className="underline" href="/privacy" target="_blank">Privacy Policy</a>.</span>
           </label>
           <button className="bg-emerald-600 text-white px-6 py-2 rounded-xl disabled:opacity-50" disabled={!agree} type="submit">
-            Pay ₹{totalPrice} & Place Order
+            {gateway === 'cod' ? 'Place Order' : `Pay ₹${totalPrice} & Place Order`}
           </button>
         </form>
         <PaymentSecurity />
