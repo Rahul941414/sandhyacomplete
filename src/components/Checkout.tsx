@@ -6,12 +6,17 @@ import { useNavigate } from "react-router-dom";
 
 export default function Checkout() {
   const nav = useNavigate();
-  const { clear, totalPrice } = useCart();
+  const { clear, items, totalPrice } = useCart();
+  const { user } = useAuth();
+  
+  // States
   const [agree, setAgree] = useState(false);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [gateway, setGateway] = useState<"razorpay" | "payu">("razorpay");
+  const [name, setName] = useState(user?.name || "");
+  const [phone, setPhone] = useState(user?.phone || "");
+  const [address, setAddress] = useState(user?.address || "");
+  const [gateway, setGateway] = useState<"payu" | "cod">("cod"); // Razorpay हटाकर डिफ़ॉल्ट 'cod' किया
+  const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   // PayU पेमेंट गेटवे फंक्शन
   const payWithPayU = async () => {
@@ -82,52 +87,56 @@ export default function Checkout() {
     }
   };
 
-  const cashOnDelivery = async () => {
-    setLoading(true);
-    const res = await fetch("/api/orders/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        items,
-        user: { name, phone, address },
-        payment: {
-          method: "cash_on_delivery",
-          status: "pending",
-          amount: totalPrice,
-        },
-      }),
-    });
-    setLoading(false);
-    if (!res.ok) { alert("Failed to create order"); return; }
-    const data = await res.json();
-    clear();
-    setSuccessMessage(`Order placed successfully! Your order #${data.id} is confirmed.`);
-    setTimeout(() => {
-      nav("/confirmation", { replace: true, state: { orderId: data.id, paymentMethod: "Cash on Delivery" } });
-    }, 1400);
-  };
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!agree || !name || !phone || !address || totalPrice <= 0) {
-      alert("Please complete all fields, have items in cart, and accept Terms & Privacy.");
+    if (!agree || !name || !phone || !address || totalPrice <= 0 || items.length === 0) {
+      alert("Please complete all fields, add items to cart, and accept Terms & Privacy.");
       return;
     }
-    if (gateway === "razorpay") await payWithRazorpay();
-    else await payWithPayU();
+    if (gateway === "payu") await payWithPayU();
+    else await cashOnDelivery();
   };
 
   return (
     <div className="container mx-auto px-4 py-10 grid lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 card p-6">
-        <h2 className="text-xl font-semibold mb-4">Checkout</h2>
-        <form onSubmit={submit} className="space-y-3">
-          <input className="w-full border px-4 py-2 rounded-xl" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} />
-          <input className="w-full border px-4 py-2 rounded-xl" placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
-          <textarea className="w-full border px-4 py-2 rounded-xl" placeholder="Address" rows={4} value={address} onChange={e => setAddress(e.target.value)} />
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2"><input type="radio" checked={gateway === 'razorpay'} onChange={() => setGateway('razorpay')} /> Razorpay</label>
-            <label className="flex items-center gap-2"><input type="radio" checked={gateway === 'payu'} onChange={() => setGateway('payu')} /> PayU</label>
+      <div className="lg:col-span-2 card p-6 bg-white rounded-3xl shadow-sm border border-slate-100">
+        <h2 className="text-xl font-bold text-slate-800 mb-4">Checkout</h2>
+        
+        <form onSubmit={submit} className="space-y-4">
+          {successMessage ? (
+            <div className="rounded-2xl bg-emerald-100 border border-emerald-200 p-4 text-emerald-900 font-medium animate-pulse">
+              {successMessage}
+            </div>
+          ) : null}
+          
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-1 block">Full Name</label>
+            <input required className="w-full border border-slate-200 px-4 py-3 rounded-xl focus:outline-none focus:border-red-500 transition" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-1 block">Phone Number</label>
+            <input required className="w-full border border-slate-200 px-4 py-3 rounded-xl focus:outline-none focus:border-red-500 transition" placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-1 block">Delivery Address</label>
+            <textarea required className="w-full border border-slate-200 px-4 py-3 rounded-xl focus:outline-none focus:border-red-500 transition" placeholder="Address" rows={3} value={address} onChange={e => setAddress(e.target.value)} />
+          </div>
+
+          {/* पेमेंट गेटवे सेलेक्टर्स */}
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-2 block">Select Payment Method</label>
+            <div className="flex items-center gap-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+              <label className="flex items-center gap-2 font-medium text-slate-700 cursor-pointer">
+                <input type="radio" name="gateway" checked={gateway === 'cod'} onChange={() => setGateway('cod')} className="text-red-600 focus:ring-red-500 cursor-pointer" /> 
+                Cash on Delivery (COD)
+              </label>
+              <label className="flex items-center gap-2 font-medium text-slate-700 cursor-pointer">
+                <input type="radio" name="gateway" checked={gateway === 'payu'} onChange={() => setGateway('payu')} className="text-red-600 focus:ring-red-500 cursor-pointer" /> 
+                PayU Online
+              </label>
+            </div>
           </div>
 
           {/* नियम एवं शर्तें */}
@@ -135,8 +144,14 @@ export default function Checkout() {
             <input type="checkbox" className="mt-1 rounded text-red-600 focus:ring-red-500 cursor-pointer" checked={agree} onChange={e => setAgree(e.target.checked)} />
             <span>I agree to the <a className="underline text-red-600 font-medium" href="/terms" target="_blank" rel="noreferrer">Terms & Conditions</a> and <a className="underline text-red-600 font-medium" href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>.</span>
           </label>
-          <button className="bg-emerald-600 text-white px-6 py-2 rounded-xl disabled:opacity-50" disabled={!agree} type="submit">
-            Pay ₹{totalPrice} & Place Order
+
+          {/* सबमिट बटन */}
+          <button 
+            className="w-full lg:w-auto bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white px-8 py-3.5 rounded-xl font-bold transition disabled:opacity-50 shadow-md" 
+            disabled={!agree || loading} 
+            type="submit"
+          >
+            {loading ? "Processing..." : gateway === 'cod' ? 'Place Order' : `Pay ₹${totalPrice} & Place Order`}
           </button>
         </form>
         
