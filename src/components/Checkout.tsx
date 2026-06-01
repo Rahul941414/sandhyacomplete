@@ -7,7 +7,7 @@ declare global { interface Window { Razorpay: any } }
 
 export default function Checkout() {
   const nav = useNavigate();
-  const { clear, totalPrice } = useCart();
+  const { clear, items, totalPrice } = useCart();
   const [agree, setAgree] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -63,20 +63,24 @@ export default function Checkout() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        amount: totalPrice,
-        currency: "INR",
-        notes: { name, phone, address },
-        paymentMethod: "cash_on_delivery"
-      })
+        items,
+        user: { name, phone, address },
+        payment: {
+          method: "cash_on_delivery",
+          status: "pending",
+          amount: totalPrice,
+        },
+      }),
     });
     if (!res.ok) { alert("Failed to create order"); return; }
+    const data = await res.json();
     clear();
-    nav("/confirmation", { replace: true });
+    nav("/confirmation", { replace: true, state: { orderId: data.id, paymentMethod: "Cash on Delivery" } });
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!agree || !name || !phone || !address || totalPrice <= 0) {
+    if (!agree || !name || !phone || !address || totalPrice <= 0 || items.length === 0) {
       alert("Please complete all fields, have items in cart, and accept Terms & Privacy.");
       return;
     }
